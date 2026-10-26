@@ -6,19 +6,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ESEC Bus GPS Tracker</title>
 
+<link rel="stylesheet"
+ href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
 <style>
 body {
   font-family: Arial, sans-serif;
   background: #f1f6fd;
   color: #17365c;
-  padding: 20px;
+  padding: 15px;
   margin: 0;
 }
 .card {
   background: white;
-  max-width: 500px;
-  margin: 20px auto;
-  padding: 20px;
+  max-width: 600px;
+  margin: 15px auto;
+  padding: 18px;
   border-radius: 16px;
   box-shadow: 0 4px 16px #0001;
 }
@@ -34,7 +37,6 @@ button {
 }
 .start { background: #16834b; color: white; }
 .stop { background: #e5485d; color: white; }
-.map { background: #e5f0ff; color: #1456a0; }
 .info {
   background: #f1f6fd;
   padding: 12px;
@@ -42,100 +44,133 @@ button {
   margin-top: 12px;
   overflow-wrap: anywhere;
 }
-a { color: #176bd1; }
+#map {
+  height: 350px;
+  width: 100%;
+  margin-top: 15px;
+  border-radius: 12px;
+}
 </style>
 </head>
 
 <body>
 <div class="card">
   <h2>🚌 ESEC Bus GPS Tracker</h2>
-  <p>Mobile Location Tracking</p>
+  <p>Live Mobile Location Tracking</p>
 
   <div class="info">
-    <b>Status:</b>
-    <span id="status">Not started</span>
+    <b>Status:</b> <span id="status">Not started</span>
+  </div>
+  <div class="info">
+    <b>Latitude:</b> <span id="lat">--</span>
+  </div>
+  <div class="info">
+    <b>Longitude:</b> <span id="lon">--</span>
+  </div>
+  <div class="info">
+    <b>Accuracy:</b> <span id="accuracy">--</span>
   </div>
 
-  <div class="info">
-    <b>Latitude:</b>
-    <span id="lat">--</span>
-  </div>
-
-  <div class="info">
-    <b>Longitude:</b>
-    <span id="lon">--</span>
-  </div>
-
-  <div class="info">
-    <b>Accuracy:</b>
-    <span id="accuracy">--</span>
-  </div>
+  <div id="map"></div>
 
   <button class="start" onclick="startGPS()">
     START LOCATION
   </button>
-
   <button class="stop" onclick="stopGPS()">
     STOP LOCATION
   </button>
 
-  <button class="map" onclick="openMap()">
-    VIEW LOCATION ON MAP
-  </button>
-
-  <p id="message">Press START LOCATION and allow permission.</p>
+  <p id="message">
+    Press START LOCATION and allow location permission.
+  </p>
 </div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
 let watchId = null;
+let marker = null;
+let accuracyCircle = null;
 let currentLat = null;
 let currentLon = null;
 
+const map = L.map('map').setView([11.0, 77.0], 6);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+
 function startGPS() {
   if (!navigator.geolocation) {
-    document.getElementById("message").textContent =
-      "Geolocation is not supported by this browser.";
+    document.getElementById('message').textContent =
+      'Geolocation is not supported by this browser.';
     return;
   }
 
   if (watchId !== null) return;
 
-  document.getElementById("status").textContent =
-    "Searching for location...";
+  document.getElementById('status').textContent =
+    'Searching for location...';
 
-  document.getElementById("message").textContent =
-    "Please allow location permission.";
+  document.getElementById('message').textContent =
+    'Waiting for GPS coordinates...';
 
   watchId = navigator.geolocation.watchPosition(
     function(position) {
       currentLat = position.coords.latitude;
       currentLon = position.coords.longitude;
 
-      document.getElementById("status").textContent =
-        "LOCATION ACTIVE";
+      const point = [currentLat, currentLon];
 
-      document.getElementById("lat").textContent =
+      document.getElementById('status').textContent =
+        'LOCATION ACTIVE';
+
+      document.getElementById('lat').textContent =
         currentLat.toFixed(6);
 
-      document.getElementById("lon").textContent =
+      document.getElementById('lon').textContent =
         currentLon.toFixed(6);
 
-      document.getElementById("accuracy").textContent =
-        Math.round(position.coords.accuracy) + " metres";
+      document.getElementById('accuracy').textContent =
+        Math.round(position.coords.accuracy) + ' metres';
 
-      document.getElementById("message").textContent =
-        "Location updated: " +
+      document.getElementById('message').textContent =
+        'Live location updated: ' +
         new Date().toLocaleTimeString();
+
+      if (marker === null) {
+        marker = L.marker(point)
+          .addTo(map)
+          .bindPopup('Your current location')
+          .openPopup();
+      } else {
+        marker.setLatLng(point);
+      }
+
+      if (accuracyCircle === null) {
+        accuracyCircle = L.circle(point, {
+          radius: position.coords.accuracy
+        }).addTo(map);
+      } else {
+        accuracyCircle.setLatLng(point);
+        accuracyCircle.setRadius(position.coords.accuracy);
+      }
+
+      map.setView(point, 17);
     },
     function(error) {
-      document.getElementById("status").textContent =
-        "Location unavailable";
+      document.getElementById('status').textContent =
+        'Location unavailable';
 
-      document.getElementById("message").textContent =
+      document.getElementById('message').textContent =
         error.message +
-        ". Check phone Location settings and browser permission.";
+        '. Check location permission and phone GPS settings.';
 
-      watchId = null;
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+      }
     },
     {
       enableHighAccuracy: true,
@@ -151,27 +186,12 @@ function stopGPS() {
     watchId = null;
   }
 
-  document.getElementById("status").textContent =
-    "Location stopped";
+  document.getElementById('status').textContent =
+    'Location stopped';
 
-  document.getElementById("message").textContent =
-    "GPS tracking stopped.";
-}
-
-function openMap() {
-  if (currentLat === null || currentLon === null) {
-    alert("Start location first and wait for GPS coordinates.");
-    return;
-  }
-
-  const url =
-    "https://www.openstreetmap.org/?mlat=" +
-    currentLat + "&mlon=" + currentLon +
-    "#map=17/" + currentLat + "/" + currentLon;
-
-  window.open(url, "_blank");
+  document.getElementById('message').textContent =
+    'GPS tracking stopped.';
 }
 </script>
 </body>
-  </html>
-    
+</html>
