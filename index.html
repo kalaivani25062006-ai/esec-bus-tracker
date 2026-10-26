@@ -4,28 +4,55 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ESEC Bus GPS Tracker</title>
+<title>ESEC Bus Live GPS Tracker</title>
 
 <link rel="stylesheet"
  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 
 <style>
+* {
+  box-sizing: border-box;
+}
+
 body {
   font-family: Arial, sans-serif;
   background: #f1f6fd;
   color: #17365c;
-  padding: 15px;
   margin: 0;
+  padding: 15px;
 }
+
 .card {
   background: white;
-  max-width: 600px;
+  max-width: 650px;
   margin: 15px auto;
   padding: 18px;
   border-radius: 16px;
   box-shadow: 0 4px 16px #0001;
 }
-h2 { color: #176bd1; }
+
+h2 {
+  color: #176bd1;
+  margin-top: 5px;
+}
+
+.info {
+  background: #f1f6fd;
+  padding: 12px;
+  border-radius: 9px;
+  margin-top: 12px;
+  overflow-wrap: anywhere;
+}
+
+#map {
+  height: 380px;
+  width: 100%;
+  margin-top: 15px;
+  border-radius: 12px;
+  border: 1px solid #d5dfed;
+  background: #e5eaf0;
+}
+
 button {
   width: 100%;
   padding: 14px;
@@ -34,41 +61,49 @@ button {
   border-radius: 10px;
   font-size: 16px;
   font-weight: bold;
+  cursor: pointer;
 }
-.start { background: #16834b; color: white; }
-.stop { background: #e5485d; color: white; }
-.info {
-  background: #f1f6fd;
-  padding: 12px;
-  border-radius: 9px;
-  margin-top: 12px;
+
+.start {
+  background: #16834b;
+  color: white;
+}
+
+.stop {
+  background: #e5485d;
+  color: white;
+}
+
+#message {
+  line-height: 1.5;
   overflow-wrap: anywhere;
-}
-#map {
-  height: 350px;
-  width: 100%;
-  margin-top: 15px;
-  border-radius: 12px;
 }
 </style>
 </head>
 
 <body>
 <div class="card">
-  <h2>🚌 ESEC Bus GPS Tracker</h2>
-  <p>Live Mobile Location Tracking</p>
+  <h2>🚌 ESEC Bus Live GPS Tracker</h2>
+  <p>Live mobile location on map</p>
 
   <div class="info">
-    <b>Status:</b> <span id="status">Not started</span>
+    <b>Status:</b>
+    <span id="status">NOT STARTED</span>
   </div>
+
   <div class="info">
-    <b>Latitude:</b> <span id="lat">--</span>
+    <b>Latitude:</b>
+    <span id="lat">--</span>
   </div>
+
   <div class="info">
-    <b>Longitude:</b> <span id="lon">--</span>
+    <b>Longitude:</b>
+    <span id="lon">--</span>
   </div>
+
   <div class="info">
-    <b>Accuracy:</b> <span id="accuracy">--</span>
+    <b>GPS Accuracy:</b>
+    <span id="accuracy">--</span>
   </div>
 
   <div id="map"></div>
@@ -76,6 +111,7 @@ button {
   <button class="start" onclick="startGPS()">
     START LOCATION
   </button>
+
   <button class="stop" onclick="stopGPS()">
     STOP LOCATION
   </button>
@@ -94,27 +130,44 @@ let accuracyCircle = null;
 let currentLat = null;
 let currentLon = null;
 
-const map = L.map('map').setView([11.0, 77.0], 6);
+const statusText = document.getElementById("status");
+const latText = document.getElementById("lat");
+const lonText = document.getElementById("lon");
+const accuracyText = document.getElementById("accuracy");
+const messageText = document.getElementById("message");
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19,
-  attribution: '&copy; OpenStreetMap contributors'
-}).addTo(map);
+// Create the map inside this website.
+const map = L.map("map").setView([11.1965, 77.5827], 13);
+
+L.tileLayer(
+  "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+  {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap contributors"
+  }
+).addTo(map);
 
 function startGPS() {
-  if (!navigator.geolocation) {
-    document.getElementById('message').textContent =
-      'Geolocation is not supported by this browser.';
+  if (!window.isSecureContext) {
+    messageText.textContent =
+      "Please open this website using its HTTPS GitHub Pages link.";
     return;
   }
 
-  if (watchId !== null) return;
+  if (!navigator.geolocation) {
+    messageText.textContent =
+      "Your browser does not support GPS location.";
+    return;
+  }
 
-  document.getElementById('status').textContent =
-    'Searching for location...';
+  if (watchId !== null) {
+    messageText.textContent = "Location tracking is already active.";
+    return;
+  }
 
-  document.getElementById('message').textContent =
-    'Waiting for GPS coordinates...';
+  statusText.textContent = "SEARCHING FOR LOCATION...";
+  messageText.textContent =
+    "Allow location permission and wait for GPS coordinates.";
 
   watchId = navigator.geolocation.watchPosition(
     function(position) {
@@ -123,27 +176,23 @@ function startGPS() {
 
       const point = [currentLat, currentLon];
 
-      document.getElementById('status').textContent =
-        'LOCATION ACTIVE';
+      statusText.textContent = "LOCATION ACTIVE";
+      latText.textContent = currentLat.toFixed(6);
+      lonText.textContent = currentLon.toFixed(6);
 
-      document.getElementById('lat').textContent =
-        currentLat.toFixed(6);
+      accuracyText.textContent =
+        Math.round(position.coords.accuracy) + " metres";
 
-      document.getElementById('lon').textContent =
-        currentLon.toFixed(6);
-
-      document.getElementById('accuracy').textContent =
-        Math.round(position.coords.accuracy) + ' metres';
-
-      document.getElementById('message').textContent =
-        'Live location updated: ' +
+      messageText.textContent =
+        "Location updated at " +
         new Date().toLocaleTimeString();
 
       if (marker === null) {
         marker = L.marker(point)
           .addTo(map)
-          .bindPopup('Your current location')
-          .openPopup();
+          .bindPopup("📍 Your current mobile location");
+
+        marker.openPopup();
       } else {
         marker.setLatLng(point);
       }
@@ -157,25 +206,31 @@ function startGPS() {
         accuracyCircle.setRadius(position.coords.accuracy);
       }
 
+      // Keep the map centered on the updated location.
       map.setView(point, 17);
     },
-    function(error) {
-      document.getElementById('status').textContent =
-        'Location unavailable';
 
-      document.getElementById('message').textContent =
-        error.message +
-        '. Check location permission and phone GPS settings.';
+    function(error) {
+      const messages = {
+        1: "Location permission denied. Allow location in browser settings.",
+        2: "Location unavailable. Check your phone GPS settings.",
+        3: "GPS request timed out. Try again outdoors."
+      };
+
+      statusText.textContent = "LOCATION ERROR";
+      messageText.textContent =
+        messages[error.code] || error.message;
 
       if (watchId !== null) {
         navigator.geolocation.clearWatch(watchId);
         watchId = null;
       }
     },
+
     {
       enableHighAccuracy: true,
       maximumAge: 1000,
-      timeout: 20000
+      timeout: 25000
     }
   );
 }
@@ -186,12 +241,16 @@ function stopGPS() {
     watchId = null;
   }
 
-  document.getElementById('status').textContent =
-    'Location stopped';
+  statusText.textContent = "LOCATION STOPPED";
+  messageText.textContent = "GPS tracking stopped.";
 
-  document.getElementById('message').textContent =
-    'GPS tracking stopped.';
+  // Keep the last marker visible on the map.
 }
+
+// Fix map sizing when the page is first displayed.
+setTimeout(function() {
+  map.invalidateSize();
+}, 300);
 </script>
 </body>
 </html>
